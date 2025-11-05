@@ -1,132 +1,162 @@
-👁️ FaceGuard: Real-Time Liveness & Emotion AI
-A sophisticated, real-time security application built with Python and modern AI libraries. FaceGuard verifies user liveness through an interactive challenge-response system and performs continuous emotion analysis.
+# 👁️ FaceGuard: Real-Time Liveness, Auth & Emotion AI
 
-It's highly recommended to record a short GIF of the app working and place it here. This makes your project look incredibly professional.
+FaceGuard is a sophisticated, real-time security application built with Python and modern AI libraries. It verifies a user's identity by combining:
+1.  **Active Liveness Detection:** Prevents spoofing from photos or videos using a random challenge-response system.
+2.  **Facial Recognition:** Registers and authenticates users against a secure face database.
+3.  **Emotion Analysis:** Provides a continuous, live feed of the user's detected emotion after successful login.
 
-🚀 Core Features
-✅ Active Liveness Detection: Employs a secure challenge-response mechanism (e.g., "Smile," "Blink") to prevent spoofing from photos and videos.
+---
 
-✅ Real-time Emotion Analysis: After successful liveness verification, the system provides a continuous, live feed of the user's detected emotion.
+## 🚀 Core Features
 
-✅ Responsive UI: A clean, modern web interface built with Tailwind CSS that provides clear instructions and feedback to the user.
+* **✅ Active Liveness Detection:** Employs a secure challenge-response mechanism (e.g., "Blink," "Smile") to ensure the user is a live person.
+* **🔐 Facial Recognition & Auth:** Securely register new users and log in existing ones using facial biometrics.
+* **😊 Real-time Emotion Analysis:** After successful login, the system provides a continuous, live feed of the user's detected emotion (e.g., Happy, Sad, Neutral).
+* **📂 File-Based Database:** Uses a simple folder-based system for storing user faces, managed by DeepFace.
 
-✅ Robust Backend: Powered by a Flask server, capable of handling real-time video stream processing.
+---
 
+## 🛠️ Technology Stack
 
-🛠️ Technology Stack
-Category
+| Category | Technology |
+| :--- | :--- |
+| **Backend** | Flask, OpenCV, Dlib, DeepFace |
+| **Frontend** | HTML, Tailwind CSS, JavaScript |
+| **AI Models** | Dlib 68-point Landmark Predictor, VGG-Face |
 
-Technology
+---
 
-Backend
+## 🏁 Getting Started
 
+This guide will walk you through setting up and running the entire project from scratch using the **Anaconda Prompt**.
 
+### Prerequisites
 
-AI / ML
+Before you begin, ensure you have the following software installed on your machine:
 
+1.  [**Anaconda**](https://www.anaconda.com/download)
+2.  [**Git**](https://git-scm.com/downloads)
 
+### Installation & Setup Guide
 
-Frontend
+Follow these steps exactly in your Anaconda Prompt.
 
+**1. Clone the Repository**
 
+First, clone this repository to your local machine. This will be **slow** because it includes the large `.dat` model file, but it's the simplest way.
 
-🏁 Getting Started
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
+```bash
+# Clone the repository
+git clone [https://github.com/Krishna-Chaitanya-007/Capstone.git](https://github.com/Krishna-Chaitanya-007/Capstone.git)
 
-Prerequisites
-This project has a complex setup process due to C++ library compilation. Following these steps in order is crucial for a successful installation.
-
-You will need the following tools installed on your Windows machine:
-
-Python (3.8 - 3.11 recommended)
-
-Git for version control
-
-CMake for building C++ libraries
-
-Visual Studio Build Tools (with the C++ workload)
-
-Note: For a detailed, step-by-step guide on setting up these prerequisites on a completely fresh machine, please see the Detailed Setup Guide below.
-
-🚀 Quick Installation & Launch
-If your prerequisites are already installed, you can launch the application with these commands.
-
-Clone the repository:
-
+# Navigate into the project folder
+cd Capstone
 ```
-git clone [https://github.com/YourUsername/YourRepoName.git](https://github.com/YourUsername/YourRepoName.git)
-cd YourRepoName
-````
 
-Install Python packages:
+**2. Create the Conda Environment**
+
+We will create a dedicated environment named faceguard to keep all the complex libraries separate.
+
+
+```bash
+# Create a new environment with Python 3.10
+conda create -n faceguard python=3.10 -y
+
+# Activate the new environment
+conda activate faceguard
 ```
-pip install -r requirements.txt
+Your prompt should now look like (faceguard) D:\...
+
+
+**3. Install Dependencies**
+
+These AI libraries can be tricky to install. This method is the most reliable.
+
+
+```bash
+# 1. Install dlib, opencv, and flask from the conda-forge channel
+conda install -c conda-forge dlib opencv flask -y
+
+# 2. Install deepface using pip (which is inside your conda env)
+pip install deepface
 ```
-Stuck on dlib? If the pip install fails, use Conda: conda install -c conda-forge dlib
+**4. Run the Application**
+You're all set! Now, just run the Flask server.
 
-Download the Dlib Model:
 
-Download the facial landmark model from this link.
-
-Unzip it and place the shape_predictor_68_face_landmarks.dat file in the root of the project folder.
-
-Run the application:
-
+```bash
+# (Make sure you are still in the (faceguard) environment)
 python app.py
+```
+You will see output in your terminal indicating the server is running, probably on http://127.0.0.1:5000.
 
-Open in your browser:
+📖 How to Use the Application
+Once the server is running, open your web browser (like Chrome or Firefox) and go to:
+```
+http://127.0.0.1:5000
+```
+You must grant camera permission when the browser asks.
 
-Navigate to http://127.0.0.1:5000
+<br/>
 
-🛠️ Detailed Setup Guide (For a Fresh Windows Install)
-If you are starting from scratch, follow these steps carefully.
+**1. How to Register a New User** 
+``` markdown
+Click the Register button.
 
-<details>
-<summary><strong>Click to expand the full setup guide</strong></summary>
+The text input field will appear. Type your name (e.g., "Krishna").
 
-Install Python:
+Click the "Click to Start Registration" button.
 
-Download Python (e.g., 3.10.x) from python.org.
+The liveness check will begin. Follow the on-screen command (e.g., "Blink").
 
-CRUCIAL: During installation, you must check the box that says "Add Python to PATH".
+If you pass, you will see "✅ Liveness Confirmed!" followed by "Authenticating..."
 
-Install Git:
+The system will save your face under your name. You will see "Registration Complete!"
+```
 
-Download and install Git from git-scm.com.
+**2. How to Log In**
+``` markdown
+From the main screen (or after clicking Reset), click the Login button.
 
-Install CMake:
+The liveness check will begin. Follow the on-screen command.
 
-Download the "Windows x64 Installer" from cmake.org.
+If you pass, you will see "✅ Liveness Confirmed!" followed by "Authenticating..."
 
-CRUCIAL: During installation, select the option "Add CMake to the system PATH for all users".
+The system will compare your face to all registered users.
 
-Install Visual Studio Build Tools:
+If you are recognized, you will see "Welcome, [YourName]!"
 
-Go to the Visual Studio downloads page and find "Tools for Visual Studio".
+The application will immediately switch to the Live Emotion Analysis feed, drawing a box over your face and showing your current emotion.
+```
 
-Download the "Build Tools for Visual Studio".
+3. Resetting
+```
+If a liveness check fails, or after you are done, click the Reset button to return to the main registration/login screen.
+```
+<hr/>
+<br/>
 
-Run the installer. In the "Workloads" tab, you must select "Desktop development with C++". This provides the necessary C++ compiler.
+**⚠️ Common Troubleshooting:**
+``` 
+Error installing dlib:
 
-After the installation is complete, RESTART YOUR COMPUTER. This step is not optional.
+  -> If the conda install command fails, you are likely missing C++ build tools.
 
-Follow the Quick Installation & Launch steps above. After completing these prerequisites, the "Quick Installation" commands will now work successfully.
+  -> Install Visual Studio Build Tools.
 
-</details>
+  -> When installing, check the "Desktop development with C++" workload.
 
-🗺️ Project Roadmap
-This project is under active development. Future enhancements include:
+  -> Restart your computer.
 
-[ ] Face Recognition & Database Integration:
+  -> Try the conda install command again.
+```
 
-[ ] Add a user registration flow.
+```
+Camera Not Working:
 
-[ ] Store face embeddings in a database.
+  -> Make sure you clicked "Allow" when your browser asked for camera permission.
 
-[ ] Implement a verification step to grant access only to registered users.
+  -> Make sure no other application (like Zoom or Teams) is using your camera.
 
-[ ] Add More Liveness Challenges: Implement additional challenges like "Turn Head Left/Right" or "Raise Eyebrows" to increase security.
-
-[ ] UI/UX Enhancements: Refine the user interface for a smoother, more intuitive experience.
-
-Feel free to contribute to this project by submitting a pull request.
+  -> Try refreshing the page (F5)
+```
