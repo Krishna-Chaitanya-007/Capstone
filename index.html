@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Active Liveness & Emotion Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #videoContainer { position: relative; width: 640px; height: 480px; margin: 0 auto; }
+        #video, #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 0.75rem; }
+        /* keep video visually mirrored for user feedback */
+        #video { object-fit: cover; transform: scaleX(-1); }
+        #canvas { pointer-events: none; }
+        .progress-bar { transition: width 0.1s linear; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-900 text-slate-200 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div id="main-container" class="text-center w-full max-w-3xl">
+        <h1 id="main-title" class="text-3xl sm:text-4xl font-bold text-white mb-2">Authentication</h1>
+        <p id="main-subtitle" class="text-slate-400 mb-6">Please register or log in.</p>
+
+        <div id="videoContainer" class="bg-slate-800 rounded-xl shadow-lg mb-4">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div id="status-container" class="h-24 flex items-center justify-center space-x-4">
+            
+            <div id="auth-select-container" class="flex items-center justify-center space-x-4">
+                <input id="usernameInput" type="text" placeholder="Enter name to register" class="hidden bg-slate-700 text-white px-4 py-3 rounded-lg">
+                <button id="registerButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300">
+                    Register
+                </button>
+                <button id="loginButton" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300">
+                    Login
+                </button>
+            </div>
+            
+            <button id="startButton" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-300">
+                Start Liveness Check
+            </button>
+
+            <div id="challenge-container" class="hidden text-center">
+                <p class="text-lg text-slate-300">Please perform this action:</p>
+                <p id="challenge-text" class="text-4xl font-bold text-amber-400 my-2"></p>
+                <div class="w-full bg-slate-700 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-amber-500 h-2.5 rounded-full progress-bar" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <div id="success-container" class="hidden text-center">
+                <p class="text-4xl font-bold text-green-400">✅ Liveness Confirmed!</p>
+                <p class="text-lg text-slate-300 mt-2">Starting emotion analysis...</p>
+            </div>
+
+            <div id="failure-container" class="hidden text-center">
+                <p class="text-4xl font-bold text-red-400">❌ Liveness Failed</p>
+            </div>
+        </div>
+
+        <button id="resetButton" class="hidden mt-4 bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-5 rounded-lg transition duration-300">
+            Reset
+        </button>
+        <div id="error-message" class="hidden mt-4 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg"></div>
+    </div>
+
+    <script>
+        // DOM
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startButton = document.getElementById('startButton');
+        const resetButton = document.getElementById('resetButton');
+        const mainTitle = document.getElementById('main-title');
+        const mainSubtitle = document.getElementById('main-subtitle');
+        const challengeContainer = document.getElementById('challenge-container');
+        const successContainer = document.getElementById('success-container');
+        const failureContainer = document.getElementById('failure-container');
+        const challengeText = document.getElementById('challenge-text');
+        const progressBar = document.getElementById('progress-bar');
+        const errorMessage = document.getElementById('error-message');
+        
+        // --- New DOM Elements ---
+        const registerButton = document.getElementById('registerButton');
+        const loginButton = document.getElementById('loginButton');
+        const authSelectContainer = document.getElementById('auth-select-container');
+        const usernameInput = document.getElementById('usernameInput');
+        // --- End New ---
+
+        // State
+        let livenessInterval = null;
+        let countdownInterval = null;
+        let isProcessingFrame = false;
+        let isAnalysisRunning = false;
+        const CHALLENGE_TIME = 5000;
+        let isChallengeOver = false;
+        let analysisAnimationId = null;
+
+        // --- New State ---
+        let authMode = null; // 'login' or 'register'
+        let currentUsername = null;
+        // --- End New ---
+        
+        // --- Modified Event Listeners ---
+        registerButton.addEventListener('click', () => {
+            // Show input field first, then wait for start
+            usernameInput.classList.remove('hidden');
+            authMode = 'register';
+            // Change button text to confirm
+            registerButton.innerText = "Click to Start Registration";
+            registerButton.onclick = () => {
+                if (!usernameInput.value) {
+                    showError("Please enter a name to register.");
+                    return;
+                }
+                prepareAuth('register'); // This will now grab the name
+            }
+            loginButton.classList.add('hidden'); // Hide login to avoid confusion
+        });
+        loginButton.addEventListener('click', () => prepareAuth('login'));
+        resetButton.addEventListener('click', resetUI);
+        // --- End Modified ---
+
+        // --- New Function ---
+        function prepareAuth(mode) {
+            authMode = mode;
+            currentUsername = usernameInput.value;
+
+            if (authMode === 'register' && !currentUsername) {
+                showError("Please enter a name to register.");
+                return;
+            }
+            
+            // Hide auth buttons and start the liveness check
+            authSelectContainer.classList.add('hidden');
+            usernameInput.classList.add('hidden');
+            mainTitle.innerText = "Active Liveness Detection";
+            mainSubtitle.innerText = "Perform the action to verify you're real.";
+            startLivenessCheck(); // This was the old startButton listener
+        }
+        // --- End New ---
+
+        async function startLivenessCheck() {
+            // startButton.classList.add('hidden'); // No longer needed
+            isChallengeOver = false;
+            clearError();
+            if (!await startWebcam()) {
+                // On failure, show auth buttons again
+                authSelectContainer.classList.remove('hidden');
+                if (authMode === 'register') usernameInput.classList.remove('hidden');
+                return;
+            }
+            try {
+                const res = await fetch('/get_challenge');
+                const json = await res.json();
+                runChallenge(json.challenge);
+            } catch (err) {
+                showError("Could not connect to server for challenge.");
+                authSelectContainer.classList.remove('hidden');
+                if (authMode === 'register') usernameInput.classList.remove('hidden');
+            }
+        }
+
+        function displayChallenge(challenge) {
+            challengeContainer.classList.remove('hidden');
+            challengeText.innerText = challenge;
+            progressBar.style.width = '100%';
+        }
+
+        function runChallenge(challenge) {
+            displayChallenge(challenge);
+            const startTime = Date.now();
+
+            // Polling verification
+            livenessInterval = setInterval(async () => {
+                if (isChallengeOver) return;
+                try {
+                    const success = await sendFrameForVerification(challenge);
+                    if (success && !isChallengeOver) {
+                        isChallengeOver = true;
+                        stopAllProcessing();
+                        showSuccess();
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 250);
+
+            // Countdown
+            countdownInterval = setInterval(() => {
+                if (isChallengeOver) return;
+                const remainingTime = Math.max(0, CHALLENGE_TIME - (Date.now() - startTime));
+                progressBar.style.width = `${(remainingTime / CHALLENGE_TIME) * 100}%`;
+                if (remainingTime <= 0 && !isChallengeOver) {
+                    isChallengeOver = true;
+                    stopAllProcessing();
+                    showFailure();
+                }
+            }, 100);
+        }
+
+        async function sendFrameForVerification(challenge) {
+            const imageData = captureMirroredFrame();
+            if (!imageData) return false;
+            try {
+                const res = await fetch('/verify', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ image: imageData, challenge })
+                });
+                const json = await res.json();
+                return !!json.success;
+            } catch (err) {
+                if (!isChallengeOver) {
+                    isChallengeOver = true;
+                    stopAllProcessing();
+                    showError("Server connection lost.");
+                }
+                return false;
+            }
+        }
+
+        function captureMirroredFrame() {
+            if (video.paused || video.ended || !video.videoWidth) return null;
+            const w = video.videoWidth, h = video.videoHeight;
+            const temp = document.createElement('canvas');
+            temp.width = w;
+            temp.height = h;
+            const ctx = temp.getContext('2d');
+            // Mirror horizontally so server analysis matches user's visual feedback
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, -w, 0, w, h);
+            ctx.restore();
+            // send as smaller JPEG to reduce payload (quality 0.7)
+            return temp.toDataURL('image/jpeg', 0.7);
+        }
+
+        // Emotion analysis loop
+        async function emotionAnalysisLoop() {
+            if (!isAnalysisRunning) return;
+            if (!isProcessingFrame) {
+                isProcessingFrame = true;
+                const imageData = captureMirroredFrame();
+                if (imageData) {
+                    try {
+                        const res = await fetch('/analyze_emotion', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ image: imageData })
+                        });
+                        const result = await res.json();
+                        drawEmotionResults(result);
+                    } catch (err) {
+                        console.error("Emotion analysis error:", err);
+                        showError("Connection lost during analysis.");
+                        isAnalysisRunning = false;
+                    } finally {
+                        isProcessingFrame = false;
+                    }
+                } else {
+                    isProcessingFrame = false;
+                }
+            }
+            analysisAnimationId = requestAnimationFrame(emotionAnalysisLoop);
+        }
+
+        function drawEmotionResults(result) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!result) return;
+            const box = result.box || [];
+            if (box.length === 4) {
+                let [startX, startY, endX, endY] = box;
+                // box coordinates were computed on the frame we sent (mirrored), so draw them directly
+                const boxWidth = Math.max(0, endX - startX);
+                const boxHeight = Math.max(0, endY - startY);
+                const label = `Emotion: ${result.emotion || 'N/A'}`;
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#22c55e';
+                ctx.strokeRect(startX, startY, boxWidth, boxHeight);
+
+                ctx.font = '16px Inter';
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(startX, Math.max(0, startY - 26), textWidth + 10, 24);
+                ctx.fillStyle = 'black';
+                ctx.fillText(label, startX + 5, Math.max(0, startY - 8));
+            }
+        }
+
+        // --- HEAVILY MODIFIED Function ---
+        async function showSuccess() {
+            challengeContainer.classList.add('hidden');
+            successContainer.classList.remove('hidden');
+            
+            // Wait 1.2s to show "Liveness Confirmed"
+            await new Promise(r => setTimeout(r, 1200)); 
+
+            // Now, perform authentication
+            mainTitle.innerText = "Authenticating...";
+            mainSubtitle.innerText = "Verifying your identity...";
+            successContainer.classList.add('hidden');
+
+            const authFrame = captureMirroredFrame();
+            if (!authFrame) {
+                showError("Failed to capture frame for authentication.");
+                resetUI();
+                return;
+            }
+
+            try {
+                let authResult;
+                if (authMode === 'register') {
+                    const res = await fetch('/register', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ image: authFrame, username: currentUsername })
+                    });
+                    authResult = await res.json();
+                } else { // 'login'
+                    const res = await fetch('/login', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ image: authFrame })
+                    });
+                    authResult = await res.json();
+                }
+
+                if (authResult.success) {
+                    if (authMode === 'register') {
+                        // Registered! Now ask them to log in.
+                        mainTitle.innerText = "Registration Complete!";
+                        mainSubtitle.innerText = "You can now log in.";
+                        resetButton.classList.remove('hidden');
+                    } else {
+                        // Logged In! Proceed to emotion analysis.
+                        const username = authResult.username;
+                        mainTitle.innerText = `Welcome, ${username}!`;
+                        mainSubtitle.innerText = "Live emotion analysis is starting.";
+                        resetButton.classList.remove('hidden');
+                        
+                        // This is the OLD logic from showSuccess()
+                        isAnalysisRunning = true;
+                        if (!analysisAnimationId) {
+                            analysisAnimationId = requestAnimationFrame(emotionAnalysisLoop);
+                        } else {
+                            analysisAnimationId = requestAnimationFrame(emotionAnalysisLoop);
+                        }
+                    }
+                } else {
+                    // Auth failed
+                    showError(`Authentication Failed: ${authResult.reason}`);
+                    showFailure();
+                }
+            } catch (err) {
+                showError("Server error during authentication.");
+                showFailure();
+            }
+        }
+        // --- End Modified ---
+
+
+        function showFailure() {
+            challengeContainer.classList.add('hidden');
+            failureContainer.classList.remove('hidden');
+            resetButton.classList.remove('hidden');
+        }
+
+        function stopAllProcessing() {
+            clearInterval(livenessInterval);
+            livenessInterval = null;
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            isAnalysisRunning = false;
+            isProcessingFrame = false;
+            isChallengeOver = true;
+            if (analysisAnimationId) {
+                cancelAnimationFrame(analysisAnimationId);
+                analysisAnimationId = null;
+            }
+        }
+        
+        // --- MODIFIED Function ---
+        function resetUI() {
+            stopAllProcessing();
+            // stop camera
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(t => t.stop());
+                video.srcObject = null;
+            }
+            // clear canvas & state
+            canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+            mainTitle.innerText = "Authentication";
+            mainSubtitle.innerText = "Please register or log in.";
+            failureContainer.classList.add('hidden');
+            successContainer.classList.add('hidden');
+            challengeContainer.classList.add('hidden');
+            resetButton.classList.add('hidden');
+            
+            // --- New Reset Logic ---
+            authSelectContainer.classList.remove('hidden');
+            loginButton.classList.remove('hidden');
+            usernameInput.classList.add('hidden'); // Hide by default
+            usernameInput.value = '';
+            registerButton.innerText = "Register";
+            
+            // Re-bind the original register click listener
+            registerButton.onclick = () => {
+                usernameInput.classList.remove('hidden');
+                authMode = 'register';
+                registerButton.innerText = "Click to Start Registration";
+                registerButton.onclick = () => {
+                    if (!usernameInput.value) {
+                        showError("Please enter a name to register.");
+                        return;
+                    }
+                    prepareAuth('register');
+                }
+                loginButton.classList.add('hidden');
+            };
+            
+            authMode = null;
+            currentUsername = null;
+            // --- End New ---
+
+            challengeText.innerText = '';
+            progressBar.style.width = '100%';
+            clearError();
+            // reset locks
+            isChallengeOver = false;
+            isAnalysisRunning = false;
+            isProcessingFrame = false;
+        }
+        // --- End Modified ---
+
+        function showError(message) {
+            errorMessage.classList.remove('hidden');
+            errorMessage.textContent = message;
+        }
+        function clearError() {
+            errorMessage.classList.add('hidden');
+            errorMessage.textContent = '';
+        }
+
+        async function startWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        resolve();
+                    };
+                });
+                return true;
+            } catch (err) {
+                showError("Could not access camera. Please grant permission and refresh.");
+                return false;
+            }
+        }
+        
+        // Start camera on load for auth screen
+        startWebcam();
+    </script>
+</body>
+</html>
